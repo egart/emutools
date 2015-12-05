@@ -1,5 +1,5 @@
 #! /bin/bash
-# MAME_Update v.0.1
+# MAME_Update v0.2
 #
 # Script to build or update a MAME directory in OS X from source directories of ROMs, CHDs, and EXTRAs
 #
@@ -7,11 +7,11 @@
 ##################
 #
 # 0.1: Initial release (12/4/2015)
+# 0.2: Preserve artwork timestamps (12/5/2015)
 
 #Source and destination folders
 rom_src=/Volumes/EMULATION
-#mame_dest=/Volumes/Stadium Events/Games/MAME
-mame_dest=/Volumes/Bababooey/Temp/Incomplete/MAME
+mame_dest=/Volumes/Stadium Events/Games/MAME
 
 # New version numbers
 mame_ver="0.168"
@@ -50,7 +50,7 @@ rsync -acviP --delete --exclude '*DS_Store*' --exclude-from=$TMPDIR/excludes $TM
 # Updating ROMs and CHDs
 echo "Updating ROMs and CHDs. This may take a while."
 sleep 2
-rsync -aviP --delete --exclude '*_ReadMe_*' "$roms" "$chds" "$swlist_roms" "$swlist_chds" "$mame_dest/roms"
+rsync -acviP --delete --exclude '*_ReadMe_*' "$roms" "$chds" "$swlist_roms" "$swlist_chds" "$mame_dest/roms"
 
 #Updating extras
 echo "Updating extras"
@@ -83,8 +83,9 @@ for zipfile in *.zip; do
     exdir="${zipfile%.zip}"
     mkdir "$TMPDIR/mameart/$exdir" && unzip -d "$TMPDIR/mameart/$exdir" "$zipfile"
 done
-rsync -aviP --size-only --delete --exclude '*DS_Store*' $TMPDIR/mameart/ "$mame_dest/artwork"
-rsync -aviP "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/artwork/" "$mame_dest/artwork"
+rsync -rlgocDviP --delete --exclude '*DS_Store*' $TMPDIR/mameart/ "$mame_dest/artwork"
+rsync -acviP "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/artwork/" $TMPDIR/mameart/
+
 
 #CABINETS
 echo "Updating cabinets"
@@ -117,7 +118,7 @@ case $qmc in
     hdiutil attach $TMPDIR/downloads/qmc2-macosx-intel-$qmc_ver.dmg;
     open /Volumes/QMC2-$qmc_ver/QMC2.mpkg;;
   [Nn]* )
-    exit 0;;
+    exit;;
 esac
 
 #Cleanup
