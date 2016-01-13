@@ -1,5 +1,5 @@
 #! /bin/bash
-# MAME_Update v0.3
+# MAME_Update v0.4
 #
 # Script to build or update a MAME directory in OS X from source directories of ROMs, CHDs, and EXTRAs
 #
@@ -8,15 +8,18 @@
 #
 # 0.1: Initial release (12/4/2015)
 # 0.2: Preserve artwork timestamps (12/5/2015)
-# 0.3: Single-quoted echoes to avoid a substitution, sped up ROM sync
+# 0.3: Single-quoted echoes to avoid a substitution, sped up ROM sync (12/5/2015)
+# 0.4: All cabinet and device images are now consolidated in the /cabdevs directory
+#      Fix QMC version number in cleanup section
+#      Fix SDLMAME ZIP file version number (1/12/2016)
 
 #Source and destination folders
 rom_src=/Volumes/EMULATION
 mame_dest=/Volumes/Stadium\ Events/Games/MAME
 
 # New version numbers
-mame_ver="0.168"
-extras_ver="0.167"
+mame_ver="0.169"
+extras_ver="0.168"
 
 # Set directories
 roms="$rom_src"/MAME\ $mame_ver\ ROMs/
@@ -38,7 +41,7 @@ curl -#o category.ini "http://sourceforge.net/p/qmc2/code/HEAD/tree/trunk/data/c
 
 # Installing base MAME
 echo 'Installing base MAME'
-unzip -q mame0168-64bit.zip
+unzip -q mame0${mame_ver: -3}-64bit.zip
 ls "$extras" > $TMPDIR/excludes
 echo "roms" >> $TMPDIR/excludes
 echo "vdo" >> $TMPDIR/excludes
@@ -63,8 +66,6 @@ ls "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/" > $TMPDIR/excludes
 cat << EOF >> $TMPDIR/excludes
 _ReadMe_.txt
 artwork
-cabdevs
-cabinets
 cheat*
 category.ini
 catver.ini
@@ -86,12 +87,6 @@ for zipfile in *.zip; do
 done
 rsync -rlgocDviP --delete --exclude '*DS_Store*' $TMPDIR/mameart/ "$mame_dest/artwork"
 rsync -acviP "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/artwork/" $TMPDIR/mameart/
-
-
-#CABINETS
-echo 'Updating cabinets'
-sleep 2
-rsync -aviP --delete "$extras/cabinets/" "$extras/cabdevs/" "$mame_dest/cabinets"
 
 #CHEAT
 echo 'Updating cheats'
@@ -125,6 +120,6 @@ esac
 #Cleanup
 cd $cwd
 unset cwd rom_src mame_dest mame_ver extras_ver qmc_ver roms chds swlist_roms swlist_chds extras qmc
-if [ -d QMC2-0.59 ]; then hdiutil attach $TMPDIR/downloads/qmc2-macosx-intel-$qmc_ver.dmg; fi
+if [ -d QMC2-$qmc_ver ]; then hdiutil attach $TMPDIR/downloads/qmc2-macosx-intel-$qmc_ver.dmg; fi
 rm -r $TMPDIR/mameart $TMPDIR/excludes $TMPDIR/cheat $TMPDIR/icons.zip $TMPDIR/downloads
 echo 'Script complete!'
