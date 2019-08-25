@@ -1,5 +1,5 @@
-#! /bin/bash
-# MAME_Update v0.4
+#!/usr/bin/env bash
+# MAME_Update v0.6
 #
 # Script to build or update a MAME directory in OS X from source directories of ROMs, CHDs, and EXTRAs
 #
@@ -12,114 +12,159 @@
 # 0.4: All cabinet and device images are now consolidated in the /cabdevs directory
 #      Fix QMC version number in cleanup section
 #      Fix SDLMAME ZIP file version number (1/12/2016)
+# 0.5: Large revision in the content of EXTRAs
+#      Extras version now matches MAME version
+#      VideoSnaps now included
+#      No longer any need for separate catver and category files
+# 0.6: Update SDLMAME download link
+# 0.7: Update SDLMAME download link
+
+# TODO: quiet vs debug mode
+#       list changes
 
 #Source and destination folders
 rom_src=/Volumes/EMULATION
 mame_dest=/Volumes/Stadium\ Events/Games/MAME
+#mame_dest=/Volumes/Bababooey/Temp/Rebuilds/new\ mame
 
 # New version numbers
-mame_ver="0.169"
-extras_ver="0.168"
+mame_ver="0.208"
 
 # Set directories
 roms="$rom_src"/MAME\ $mame_ver\ ROMs/
 chds="$rom_src"/MAME\ $mame_ver\ CHDs/
 swlist_roms="$rom_src"/MAME\ $mame_ver\ Software\ List\ ROMs/
 swlist_chds="$rom_src"/MAME\ $mame_ver\ Software\ List\ CHDs/
-extras="$rom_src"/MAME\ $extras_ver\ EXTRAs
+extras="$rom_src"/MAME\ $mame_ver\ EXTRAs
+multi="$rom_src"/MAME\ $mame_ver\ Multimedia
 
 # Save working directory
 cwd=$(pwd)
 
-# Download SDLMAME, catver.ini, category.ini
-echo 'Downloading MAME files'
-sleep 2
+# Download SDLMAME
+echo 'Downloading MAME files' && sleep 2
 mkdir -p $TMPDIR/downloads && cd $_
-curl -#O http://sdlmame.lngn.net/mame0${mame_ver: -3}-64bit.zip                                              #SDLMAME
-curl -#O http://www.progettosnaps.net/MAME/pS_MAME_catver.zip                                                #catver.ini
-curl -#o category.ini "http://sourceforge.net/p/qmc2/code/HEAD/tree/trunk/data/cat/category.ini?format=raw"  #category.ini
+curl -#O http://mirrors.xmission.com/mame/mac/sdlmame/mame0${mame_ver: -3}-64bit.zip
 
 # Installing base MAME
-echo 'Installing base MAME'
+echo 'Installing base MAME' && sleep 2
 unzip -q mame0${mame_ver: -3}-64bit.zip
-ls "$extras" > $TMPDIR/excludes
+find "$extras" -depth 1 -exec basename -s.zip {} + | sort > $TMPDIR/excludes
 echo "roms" >> $TMPDIR/excludes
-echo "vdo" >> $TMPDIR/excludes
-echo "cheat*" >> $TMPDIR/excludes
+echo "cheat" >> $TMPDIR/excludes
 echo "icons.zip" >> $TMPDIR/excludes
-echo "catver.ini" >> $TMPDIR/excludes
-echo "category.ini" >> $TMPDIR/excludes
-rsync -acviP --delete --exclude '*DS_Store*' --exclude-from=$TMPDIR/excludes $TMPDIR/downloads/mame0${mame_ver: -3}-64bit/ "$mame_dest"
+echo "samples" >> $TMPDIR/excludes
+echo "soundtrack" >> $TMPDIR/excludes
+echo "videosnaps*" >> $TMPDIR/excludes
+rsync -acviP --delete --log-file=$TMPDIR/mamelog.txt --exclude '*DS_Store*' --exclude-from=$TMPDIR/excludes $TMPDIR/downloads/mame0${mame_ver: -3}-64bit/ "$mame_dest"
+rsync -aviP --delete --log-file=$TMPDIR/mamelog.txt --exclude '*.zip' "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/samples/" "$mame_dest/samples"
 
 # Updating ROMs and CHDs
-echo 'Updating ROMs and CHDs. This may take a while.'
-sleep 2
-rsync -aviP --delete --exclude '*_ReadMe_*' "$roms" "$chds" "$swlist_roms" "$swlist_chds" "$mame_dest/roms"
+echo 'Updating ROMs and CHDs. This may take a while.' && sleep 2
+mkdir -p "$mame_dest/roms"
+rsync -aviP --delete --log-file=$TMPDIR/mamelog.txt --exclude '*_ReadMe_*' "$roms" "$chds" "$swlist_roms" "$swlist_chds" "$mame_dest/roms"
 
 #Updating extras
-echo 'Updating extras'
-sleep 2
-mv -f category.ini "$mame_dest"
-unzip -q pS_MAME_catver.zip
-mv -f catver.ini "$mame_dest"
+echo 'Updating extras' && sleep 2
 ls "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/" > $TMPDIR/excludes
 cat << EOF >> $TMPDIR/excludes
+_gsdata_
 _ReadMe_.txt
-artwork
-cheat*
-category.ini
-catver.ini
-icons*
+.DS_Store
 roms
-vdo
+artpreview*
+bosses*
+cabinets*
+cheat*
+covers_SL*
+cpanel*
+devices*
+ends*
+flyers*
+gameover*
+howto*
+icons.zip
+logo*
+manuals*
+marquees*
+pcb*
+scores*
+select*
+snap*
+soundtrack
+titles*
+versus*
+videosnaps*
+warning*
 EOF
-rsync -aviP --delete --exclude-from=$TMPDIR/excludes "$extras/" "$mame_dest"
-rsync -aviP "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/samples/" "$mame_dest/samples"
+rsync -aviP --delete --log-file=$TMPDIR/mamelog.txt --exclude-from=$TMPDIR/excludes "$extras/" "$mame_dest"
+rm -r $TMPDIR/excludes
+
+#SAMPLES
+echo 'Updating samples' && sleep 2
+rsync -acviP --delete --log-file=$TMPDIR/mamelog.txt --exclude '*DS_Store*' "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/samples/" "$extras/samples/" "$mame_dest/samples"
+
+# Unzip/move EXTRAs zip files to destination
+for zipfile in "$extras"/*.zip; do
+  directory=$(echo $(basename "$zipfile" .zip))
+  echo "Updating $directory" && sleep 2
+  rm -rf "$TMPDIR/$directory"
+  mkdir  "$TMPDIR/$directory"
+  7za x -o$TMPDIR/$directory "$zipfile"
+  if [[ $zipfile == *icons.zip ]]; then
+    find $TMPDIR/icons/ -iname "*.ico" | xargs -L 1000 zip -0 $TMPDIR/icons.zip
+    rsync -acviP --log-file=$TMPDIR/mamelog.txt --size-only $TMPDIR/icons.zip "$mame_dest/icons.zip"
+    rm $TMPDIR/icons.zip
+    rm -r $TMPDIR/icons
+  else
+    mkdir -p "$mame_dest/$directory"
+    rsync -acviP --delete --log-file=$TMPDIR/mamelog.txt --exclude '*DS_Store*' "$TMPDIR/$directory/" "$mame_dest/$directory"
+    rm -r "$TMPDIR/$directory"
+  fi
+done
 
 #ARTWORK
-echo 'Updating artwork'
-sleep 2
-mkdir -p $TMPDIR/mameart
+echo 'Updating artwork' && sleep 2
+mkdir $TMPDIR/artwork
 cd "$extras/artwork"
 for zipfile in *.zip; do
-    exdir="${zipfile%.zip}"
-    mkdir "$TMPDIR/mameart/$exdir" && unzip -d "$TMPDIR/mameart/$exdir" "$zipfile"
+  exdir="${zipfile%.zip}"
+  mkdir "$TMPDIR/artwork/$exdir" && 7za x -o"$TMPDIR/artwork/$exdir" "$zipfile"
 done
-rsync -rlgocDviP --delete --exclude '*DS_Store*' $TMPDIR/mameart/ "$mame_dest/artwork"
-rsync -acviP "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/artwork/" $TMPDIR/mameart/
+rsync -acviP --delete --log-file=$TMPDIR/mamelog.txt --exclude '*DS_Store*' "$TMPDIR/downloads/mame0${mame_ver: -3}-64bit/artwork/" $TMPDIR/artwork/ "$mame_dest/artwork"
+rm -r $TMPDIR/artwork
 
 #CHEAT
-echo 'Updating cheats'
-sleep 2
-mkdir -p $TMPDIR/cheat
+echo 'Updating cheats' && sleep 2
+mkdir $TMPDIR/cheat
 7za x -o$TMPDIR/cheat "$extras/cheat.7z"
-rsync -acviP --delete $TMPDIR/cheat/ "$mame_dest/cheat"
+#zsh -c "touch -r **/*(om[1]) $TMPDIR/$cheat"
+rsync -acviP --delete --log-file=$TMPDIR/mamelog.txt $TMPDIR/cheat/ "$mame_dest/cheat"
+rm -r $TMPDIR/cheat
 
-#ICONS
-echo 'Updating icons'
-sleep 2
-cd "$extras/icons"
-zip -0 $TMPDIR/icons.zip *
-find ./ -iname "*.ico" | xargs -L 1000 zip -0 $TMPDIR/icons.zip
-rsync -acviP $TMPDIR/icons.zip "$mame_dest/icons.zip"
-
+#VIDEOS
+echo 'Updating videosnaps and soundtracks' && sleep 2
+mkdir -p "$mame_dest/soundtrack" && rsync -aviP --delete --log-file=$TMPDIR/mamelog.txt "$multi/soundtrack/" "$mame_dest/soundtrack"
+mkdir -p "$mame_dest/videosnaps" && rsync -aviP --delete --log-file=$TMPDIR/mamelog.txt "$multi/videosnaps/" "$mame_dest/videosnaps"
+mkdir -p "$mame_dest/videosnaps_SL" && rsync -aviP --delete --log-file=$TMPDIR/mamelog.txt "$multi/videosnaps_SL/" "$mame_dest/videosnaps_SL"
 
 #QMC2
 read -p "MAME update complete. Install QMC2? (Y/N) " qmc
 case $qmc in
   [Yy]* )
-    qmc_ver=`echo "$mame_ver 10 1.1" | awk '{printf "%.2f", $1 * $2 - $3}'`;
+    #qmc_ver=`echo "$mame_ver 10 1.2" | awk '{printf "%.2f", $1 * $2 - $3}'`;
     cd $TMPDIR/downloads
-    curl -LO http://downloads.sourceforge.net/project/qmc2/qmc2/$qmc_ver/qmc2-macosx-intel-$qmc_ver.dmg;
-    hdiutil attach $TMPDIR/downloads/qmc2-macosx-intel-$qmc_ver.dmg;
-    open /Volumes/QMC2-$qmc_ver/QMC2.mpkg;;
+    curl -LO http://downloads.sourceforge.net/project/qmc2/qmc2/$mame_ver/qmc2-macosx-intel-$mame_ver.dmg;
+    hdiutil attach $TMPDIR/downloads/qmc2-macosx-intel-$mame_ver.dmg;
+    open /Volumes/QMC2-$mame_ver/QMC2.mpkg;
+    read -rsp $'Press any key when installation is complete...\n' -n1 key;;
   [Nn]* )
     ;;
 esac
 
 #Cleanup
 cd $cwd
-unset cwd rom_src mame_dest mame_ver extras_ver qmc_ver roms chds swlist_roms swlist_chds extras qmc
-if [ -d QMC2-$qmc_ver ]; then hdiutil attach $TMPDIR/downloads/qmc2-macosx-intel-$qmc_ver.dmg; fi
-rm -r $TMPDIR/mameart $TMPDIR/excludes $TMPDIR/cheat $TMPDIR/icons.zip $TMPDIR/downloads
+if [ -d /Volumes/QMC2-$mame_ver ]; then hdiutil detach /Volumes/QMC2-$mame_ver; fi
+rm -r $TMPDIR/downloads
 echo 'Script complete!'
+exit
